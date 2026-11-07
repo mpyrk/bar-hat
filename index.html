@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bar Hat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;500;700&display=swap">
+<style>
+/* ───────── Settings ─────────
+   Paste your Google Maps API key between the quotes below before uploading.
+   If you leave it empty, the page asks for the key on first open and remembers it on that phone. */
+</style>
+<script>
+  window.BAR_HAT_CONFIG = {
+    GOOGLE_MAPS_API_KEY: 'AIzaSyDdM4mkp9CWvI_yQNB55CgyPbzMTRXWTxk',
+    // Optional: your own Map ID from Google Cloud. 'DEMO_MAP_ID' works for personal use.
+    MAP_ID: 'DEMO_MAP_ID',
+  };
+</script>
+<style>
+/* Layout: one centred column, three screens (add / draw / result) around a round beer-mat counter */
+:root {
+  --bg: #e9ede6;
+  --surface: #f8f8f3;
+  --fg: #18221d;
+  --muted: #5d6a62;
+  --line: #cdd5cc;
+  --accent: #b8700f;
+  --accent-ink: #ffffff;
+  --mat: #1f3a2e;
+  --mat-ink: #f3e7c9;
+  --ok: #2f7a4f;
+  --pick: #e7efe5;
+  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111814; --surface: #19221d; --fg: #eef1ea; --muted: #9aa79f; --line: #2c3a32;
+    --accent: #e9a23b; --accent-ink: #1a1206; --mat: #e9a23b; --mat-ink: #1a1206; --ok: #6cc893; --pick: #22302a;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 40px;
+}
+main { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: 1.6rem; margin: 0; letter-spacing: .02em; }
+.round { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+.mat {
+  width: 200px; aspect-ratio: 1; max-width: 100%; border-radius: 50%; margin: 0 auto;
+  background: var(--mat); color: var(--mat-ink);
+  display: grid; place-items: center; text-align: center;
+  box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--mat-ink) 18%, transparent), inset 0 0 0 11px var(--mat);
+  outline: 2px dashed color-mix(in srgb, var(--mat-ink) 35%, transparent); outline-offset: -22px;
+}
+.mat .n { font-family: var(--display); font-size: 4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.mat .lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; margin-top: 4px; }
+.mat.bump { animation: bump .35s ease; }
+@keyframes bump { 50% { transform: scale(1.06) rotate(-4deg); } }
+
+.view { display: flex; flex-direction: column; gap: 20px; }
+form { display: flex; flex-direction: column; gap: 10px; }
+label { font-weight: 700; }
+.hint { color: var(--muted); font-size: .9rem; margin: 0; }
+input[type=text] {
+  font: inherit; font-size: 1.1rem; padding: 14px 16px; border-radius: 12px;
+  border: 2px solid var(--line); background: var(--surface); color: var(--fg); width: 100%;
+}
+input[type=text]:focus { outline: none; border-color: var(--accent); }
+button {
+  font: inherit; font-weight: 700; cursor: pointer; border-radius: 12px; padding: 14px 18px; border: 2px solid transparent;
+}
+button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); color: var(--accent-ink); }
+.secondary { background: transparent; color: var(--fg); border-color: var(--line); }
+.link { background: none; color: var(--muted); padding: 6px 0; text-decoration: underline; font-weight: 500; text-align: left; border: 0; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.setup { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.setup h2 { font-family: var(--display); font-weight: 400; font-size: 1.1rem; margin: 0; }
+.err { color: var(--accent); font-weight: 700; font-size: .9rem; margin: 0; }
+
+/* Suggestions */
+.sugs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.sugs li + li { border-top: 1px solid var(--line); }
+.sug { width: 100%; text-align: left; background: transparent; color: var(--fg); border: 0; border-radius: 0; padding: 11px 14px; font-weight: 500;
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+.sug:hover { background: var(--pick); }
+.sug .sn { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.sug .sa { grid-column: 1; font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.sug .tag { grid-row: 1 / span 2; grid-column: 2; font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ok); border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.powered { font-size: .72rem; color: var(--muted); text-align: right; padding: 4px 10px; border-top: 1px solid var(--line); }
+.searchmsg { font-size: .9rem; color: var(--muted); margin: 0; }
+.picked { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center;
+  background: var(--pick); border: 2px solid var(--ok); border-radius: 12px; padding: 10px 12px; }
+.picked .pl { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ok); font-weight: 700; }
+.picked .pn { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.picked .pa { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.picked button { grid-row: 1 / span 3; grid-column: 2; padding: 8px 12px; font-size: .9rem; }
+
+.toast { min-height: 1.5em; color: var(--ok); font-weight: 700; text-align: center; margin: 0; }
+.actions { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 20px; }
+.confirm { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; }
+.confirm span { width: 100%; text-align: center; color: var(--muted); font-size: .9rem; }
+
+.result { text-align: center; display: flex; flex-direction: column; gap: 8px; padding-block: 12px; }
+.result .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .8rem; color: var(--muted); }
+.winner {
+  font-family: var(--display); font-weight: 400; font-size: clamp(2rem, 9vw, 3rem); line-height: 1.1;
+  color: var(--accent); text-wrap: balance; overflow-wrap: anywhere; margin: 0;
+}
+.result .meta { color: var(--muted); font-size: .9rem; }
+details { border-top: 1px solid var(--line); padding-top: 14px; }
+summary { cursor: pointer; color: var(--muted); }
+ol { margin: 10px 0 0; padding-left: 1.4em; }
+ol .addr { color: var(--muted); font-size: .85rem; }
+
+.crawl { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--line); padding-top: 20px; }
+.crawl h2 { font-family: var(--display); font-weight: 400; font-size: 1.2rem; margin: 0; letter-spacing: .02em; }
+.route { display: flex; flex-direction: column; gap: 14px; }
+.mapbox { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+#map { width: 100%; aspect-ratio: 4 / 3; max-width: 100%; }
+.stops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.stop { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.stop .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--mat); color: var(--mat-ink); font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.stop .num.first { background: var(--accent); color: var(--accent-ink); }
+.stop .txt { min-width: 0; }
+.stop .nm { font-weight: 700; overflow-wrap: anywhere; }
+.stop .area { font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stop .area a { color: var(--muted); }
+.stop.new { animation: pop .4s ease; }
+@keyframes pop { from { transform: translateY(6px); opacity: .3; } }
+.stop.hiddenstops { border-style: dashed; background: transparent; color: var(--muted); }
+.stop.hiddenstops .num { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
+.maplinks { display: flex; flex-direction: column; gap: 8px; }
+.maplinks a { display: block; text-align: center; text-decoration: none; border-radius: 12px; padding: 14px 18px; font-weight: 700;
+  background: var(--accent); color: var(--accent-ink); }
+.maplinks a.leg { background: transparent; color: var(--fg); border: 2px solid var(--line); }
+footer { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .mat.bump, .stop.new { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Bar Hat</h1>
+    <span class="round" id="roundLbl">Round 1</span>
+  </header>
+
+  <!-- Key setup (only shown when no key is configured or the key is rejected) -->
+  <section class="setup" id="setup" hidden>
+    <h2>Connect Google Maps</h2>
+    <p class="hint">Paste your Google Maps API key. It is saved on this phone only. You can also put it in the file's settings so nobody has to paste it.</p>
+    <p class="err" id="setupErr" hidden></p>
+    <form id="keyForm" autocomplete="off">
+      <label for="keyInput">API key</label>
+      <input type="text" id="keyInput" placeholder="AIza…" spellcheck="false" autocapitalize="off">
+      <button type="submit" class="primary">Save key</button>
+    </form>
+  </section>
+
+  <div class="mat" id="mat" aria-live="polite">
+    <div><div class="n" id="count">0</div><div class="lbl" id="countLbl">bars in the hat</div></div>
+  </div>
+
+  <!-- Add screen -->
+  <section id="addView" class="view">
+    <form id="addForm" autocomplete="off">
+      <label for="barInput">Your bar pick</label>
+      <p class="hint">Start typing and pick your bar from the Google Maps list. Then tap Add and pass the phone. Nobody sees what's already in.</p>
+      <input type="text" id="barInput" maxlength="80" placeholder="e.g. VHS" autocomplete="off" autocapitalize="words" spellcheck="false"
+        role="combobox" aria-autocomplete="list" aria-controls="sugs" aria-expanded="false">
+      <p class="searchmsg" id="searchMsg" aria-live="polite" hidden></p>
+      <div id="sugWrap" hidden>
+        <ul class="sugs" id="sugs" role="listbox" aria-label="Matching places in Warsaw"></ul>
+        <div class="powered">Suggestions by Google</div>
+      </div>
+      <button type="button" class="link" id="rawBtn" hidden></button>
+      <div class="picked" id="picked" hidden>
+        <span class="pl" id="pickedLbl">Picked</span>
+        <span class="pn" id="pickedName"></span>
+        <span class="pa" id="pickedAddr"></span>
+        <button type="button" class="secondary" id="unpickBtn">Change</button>
+      </div>
+      <button type="submit" class="primary" id="addBtn" disabled>Add to the hat</button>
+    </form>
+    <p class="toast" id="toast" aria-live="polite"></p>
+    <div class="actions">
+      <button type="button" class="secondary" id="drawBtn" disabled>Everyone's in, draw a bar</button>
+      <div class="confirm" id="drawConfirm" hidden>
+        <span>No more entries after this. Draw now?</span>
+        <button type="button" class="primary" id="drawYes">Draw</button>
+        <button type="button" class="secondary" id="drawNo">Not yet</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Result screen -->
+  <section id="resultView" class="view" hidden>
+    <div class="result">
+      <span class="eyebrow">Tonight you're going to</span>
+      <p class="winner" id="winner">…</p>
+      <span class="meta" id="winnerAddr"></span>
+      <span class="meta" id="odds"></span>
+    </div>
+    <div class="actions">
+      <button type="button" class="secondary" id="redrawBtn">Draw again from all entries</button>
+      <button type="button" class="primary" id="newBtn">Start a new round</button>
+      <div class="confirm" id="newConfirm" hidden>
+        <span>This clears every bar in the hat and the route. Start over?</span>
+        <button type="button" class="primary" id="newYes">Clear and start over</button>
+        <button type="button" class="secondary" id="newNo">Keep this round</button>
+      </div>
+    </div>
+    <section class="crawl" aria-labelledby="crawlH">
+      <h2 id="crawlH">The crawl</h2>
+      <p class="hint">Start at the drawn bar. Each next stop is the closest bar you haven't been to yet by walking distance, and it stays hidden until you reveal it.</p>
+      <button type="button" class="secondary" id="planBtn">Plan the route</button>
+      <p class="hint" id="planStatus" aria-live="polite"></p>
+      <div class="route" id="routeOut" hidden>
+        <div class="mapbox" id="mapWrap"><div id="map" role="region" aria-label="Map of the revealed bars"></div></div>
+        <ol class="stops" id="stops"></ol>
+        <button type="button" class="primary" id="revealBtn">Reveal the next bar</button>
+        <div class="maplinks" id="mapLinks"></div>
+        <p class="hint" id="routeNote"></p>
+      </div>
+    </section>
+    <details>
+      <summary>Show everything that was in the hat</summary>
+      <ol id="allList"></ol>
+    </details>
+  </section>
+
+  <footer><button type="button" class="link" id="keyBtn">Change Google Maps key</button></footer>
+</main>
+
+<script>
+(() => {
+  const CFG = window.BAR_HAT_CONFIG || {};
+  const KEY = 'bar-hat-v2', KEYSTORE = 'bar-hat-gkey';
+  const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const put = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+
+  let state = { entries: [], phase: 'add', winner: null, round: 1, route: null };
+  try { const s = JSON.parse(get(KEY)); if (s && Array.isArray(s.entries)) state = s; } catch (e) {}
+  const save = () => put(KEY, JSON.stringify(state));
+
+  const $ = id => document.getElementById(id);
+  const show = (el, on) => { el.hidden = !on; };
+  const input = $('barInput'), toast = $('toast'), mat = $('mat');
+  let toastTimer;
+
+  const key = e => (e.placeId ? 'id:' + e.placeId : 'n:' + e.name.toLowerCase());
+  const hasLoc = e => Number.isFinite(e?.lat) && Number.isFinite(e?.lng);
+  const street = e => (e.address || '').split(',')[0].trim();
+
+  function fairIndex(n) {
+    // Unbiased random integer in [0, n) using crypto
+    const max = Math.floor(0x100000000 / n) * n, buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while (buf[0] >= max);
+    return buf[0] % n;
+  }
+
+  /* ---------- Google Maps loading ---------- */
+  const apiKey = () => (CFG.GOOGLE_MAPS_API_KEY || get(KEYSTORE) || '').trim();
+  let gReady = null, gFailed = false;
+
+  function showSetup(msg) {
+    show($('setup'), true);
+    show($('setupErr'), !!msg);
+    $('setupErr').textContent = msg || '';
+  }
+  // Google calls this when the key is missing, wrong, or not allowed on this site
+  window.gm_authFailure = () => {
+    gFailed = true;
+    showSetup('Google rejected this key. Check that Maps JavaScript API, Places API (New) and Routes API are enabled, billing is on, and the key allows this website.');
+    renderAdd('Suggestions are off until the Google Maps key works.');
+  };
+
+  function loadGoogle() {
+    if (gReady) return gReady;
+    const k = apiKey();
+    if (!k) { showSetup(''); return (gReady = Promise.reject(new Error('no-key'))); }
+    // Google's official dynamic loader
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})
+      ({ key: k, v: 'weekly', language: 'pl', region: 'PL' });
+    gReady = google.maps.importLibrary('places');
+    gReady.catch(() => showSetup('Google Maps could not load. Check your connection and the key.'));
+    return gReady;
+  }
+
+  $('keyForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const v = $('keyInput').value.trim();
+    if (!v) { showSetup('Paste the key first.'); return; }
+    put(KEYSTORE, v);
+    location.reload(); // Google's script can only load once per page
+  });
+  $('keyBtn').addEventListener('click', () => { $('keyInput').value = get(KEYSTORE) || ''; showSetup(''); $('keyInput').focus(); });
+  show($('keyBtn'), !CFG.GOOGLE_MAPS_API_KEY);
+
+  /* ---------- Google Places autocomplete ---------- */
+  const WARSAW = { west: 20.85, south: 52.09, east: 21.27, north: 52.37 };
+  const BAR_TYPES = /^(bar|pub|night_club|wine_bar|cocktail_bar|beer_garden|brewpub|brewery|lounge_bar|sports_bar|irish_pub|hookah_bar|karaoke|bar_and_grill|beer_hall)$/;
+  const FOOD_TYPES = /restaurant|cafe|coffee|food|bistro|bakery|meal_/;
+  const typeRank = types => (types || []).some(t => BAR_TYPES.test(t)) ? 2 : (types || []).some(t => FOOD_TYPES.test(t)) ? 1 : 0;
+
+  let token = null, useTypeFilter = true;
+
+  async function suggest(q) {
+    const places = await loadGoogle();
+    if (!token) token = new places.AutocompleteSessionToken();
+    const req = { input: q, sessionToken: token, locationRestriction: WARSAW, includedRegionCodes: ['pl'], language: 'pl', region: 'pl' };
+    if (useTypeFilter) req.includedPrimaryTypes = ['establishment'];
+    let res;
+    try { res = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req); }
+    catch (e) {
+      if (!useTypeFilter || gFailed) throw e;
+      useTypeFilter = false; delete req.includedPrimaryTypes; // fall back to an unfiltered search once
+      res = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+    }
+    return (res.suggestions || []).map(s => s.placePrediction).filter(Boolean).map(p => ({
+      pred: p,
+      name: p.mainText?.text || p.text?.text || '',
+      sub: p.secondaryText?.text || '',
+      rank: typeRank(p.types),
+    })).sort((a, b) => b.rank - a.rank);
+  }
+
+  async function resolvePick(s) {
+    const place = s.pred.toPlace();
+    await place.fetchFields({ fields: ['id', 'displayName', 'formattedAddress', 'location'] });
+    token = null; // a session ends when a place is picked
+    return {
+      name: place.displayName || s.name,
+      address: place.formattedAddress || s.sub,
+      lat: place.location?.lat(), lng: place.location?.lng(),
+      placeId: place.id,
+    };
+  }
+
+  /* ---------- Add screen: type, pick, add ---------- */
+  let picked = null, results = [], seq = 0, debounce, resolving = false;
+
+  function resetEntry() {
+    input.value = ''; picked = null; results = []; seq++; token = null;
+    clearTimeout(debounce);
+    renderAdd('');
+  }
+
+  function renderAdd(msg) {
+    const q = input.value.trim();
+    show($('picked'), !!picked);
+    if (picked) {
+      $('pickedLbl').textContent = hasLoc(picked) ? 'Picked' : 'Added without a map location';
+      $('pickedName').textContent = picked.name;
+      $('pickedAddr').textContent = picked.address || (hasLoc(picked) ? '' : 'It will go at the end of the crawl.');
+    }
+    const showList = !picked && results.length > 0;
+    show($('sugWrap'), showList);
+    input.setAttribute('aria-expanded', String(showList));
+    $('sugs').replaceChildren(...(showList ? results : []).map((r, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'sug'; b.setAttribute('role', 'option');
+      const n = document.createElement('span'); n.className = 'sn'; n.textContent = r.name;
+      const a = document.createElement('span'); a.className = 'sa'; a.textContent = r.sub;
+      b.append(n, a);
+      if (r.rank) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = r.rank === 2 ? 'Bar' : 'Food & drink'; b.append(t); }
+      b.addEventListener('click', () => choose(i));
+      li.append(b); return li;
+    }));
+    show($('searchMsg'), !picked && !!msg);
+    $('searchMsg').textContent = msg || '';
+    show($('rawBtn'), !picked && q.length >= 2 && msg !== 'Searching…' && !resolving);
+    $('rawBtn').textContent = `Not listed? Add “${q}” without a map location`;
+    $('addBtn').disabled = !picked || resolving;
+  }
+
+  async function choose(i) {
+    const s = results[i]; if (!s || resolving) return;
+    resolving = true; renderAdd('Getting the address…');
+    try {
+      picked = await resolvePick(s);
+    } catch (e) {
+      picked = { name: s.name, address: s.sub }; // still usable, just without coordinates
+    }
+    resolving = false; renderAdd(''); $('addBtn').focus();
+  }
+
+  input.addEventListener('input', () => {
+    picked = null; results = [];
+    const q = input.value.trim();
+    clearTimeout(debounce);
+    if (q.length < 2) { seq++; renderAdd(''); return; }
+    renderAdd('Searching…');
+    const my = ++seq;
+    debounce = setTimeout(async () => {
+      try {
+        const found = await suggest(q);
+        if (my !== seq) return;
+        results = found;
+        renderAdd(found.length ? '' : `No Warsaw places match “${q}”. Check the spelling or try another part of the name.`);
+      } catch (e) {
+        if (my !== seq) return;
+        results = [];
+        renderAdd(e?.message === 'no-key' ? 'Add a Google Maps key above to get suggestions.'
+          : gFailed ? 'Suggestions are off until the Google Maps key works.'
+          : 'Google Maps isn’t answering right now. Keep typing to try again.');
+      }
+    }, 250);
+  });
+
+  $('rawBtn').addEventListener('click', () => {
+    const q = input.value.trim().replace(/\s+/g, ' ');
+    if (!q) return;
+    picked = { name: q }; renderAdd(''); $('addBtn').focus();
+  });
+  $('unpickBtn').addEventListener('click', () => { picked = null; renderAdd(''); input.focus(); input.dispatchEvent(new Event('input')); });
+
+  $('addForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    if (!picked) {
+      showToast(results.length ? 'Tap your bar in the list first.' : 'Type a bar and pick it from the list.', true);
+      return;
+    }
+    const entry = { name: picked.name };
+    if (picked.address) entry.address = picked.address;
+    if (hasLoc(picked)) Object.assign(entry, { lat: picked.lat, lng: picked.lng });
+    if (picked.placeId) entry.placeId = picked.placeId;
+    state.entries.push(entry); save();
+    resetEntry();
+    input.blur(); // hide keyboard so the next person starts clean
+    mat.classList.remove('bump'); void mat.offsetWidth; mat.classList.add('bump');
+    showToast('Added. Pass the phone on.');
+    render();
+  });
+
+  function showToast(msg, warn) {
+    toast.textContent = msg;
+    toast.style.color = warn ? 'var(--accent)' : 'var(--ok)';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.textContent = '', 3500);
+  }
+
+  /* ---------- Draw ---------- */
+  function render() {
+    const n = state.entries.length;
+    $('count').textContent = n;
+    $('countLbl').textContent = n === 1 ? 'bar in the hat' : 'bars in the hat';
+    $('roundLbl').textContent = 'Round ' + state.round;
+    const adding = state.phase === 'add';
+    show($('addView'), adding);
+    show($('resultView'), !adding);
+    $('drawBtn').disabled = n < 2;
+    $('drawBtn').textContent = n < 2 ? 'Add at least 2 bars to draw' : "Everyone's in, draw a bar";
+    if (!adding && state.winner) {
+      $('winner').textContent = state.winner.name;
+      $('winnerAddr').textContent = state.winner.address ? street(state.winner) : '';
+      const same = state.entries.filter(e => key(e) === key(state.winner)).length;
+      $('odds').textContent = same > 1 ? `Picked by ${same} people · ${same} of ${n} slips` : `1 of ${n} slips`;
+      $('allList').replaceChildren(...[...state.entries].sort((a, b) => a.name.localeCompare(b.name)).map(e => {
+        const li = document.createElement('li'); li.append(e.name);
+        if (e.address) { const s = document.createElement('span'); s.className = 'addr'; s.textContent = ' · ' + street(e); li.append(s); }
+        return li;
+      }));
+      renderRoute();
+    }
+  }
+
+  $('drawBtn').addEventListener('click', () => { show($('drawConfirm'), true); show($('drawBtn'), false); });
+  $('drawNo').addEventListener('click', () => { show($('drawConfirm'), false); show($('drawBtn'), true); });
+  $('drawYes').addEventListener('click', () => { show($('drawConfirm'), false); show($('drawBtn'), true); draw(); });
+  $('redrawBtn').addEventListener('click', draw);
+
+  $('newBtn').addEventListener('click', () => { show($('newConfirm'), true); show($('newBtn'), false); });
+  $('newNo').addEventListener('click', () => { show($('newConfirm'), false); show($('newBtn'), true); });
+  $('newYes').addEventListener('click', () => {
+    show($('newConfirm'), false); show($('newBtn'), true);
+    state = { entries: [], phase: 'add', winner: null, round: state.round + 1, route: null };
+    save(); toast.textContent = ''; resetEntry(); render();
+  });
+
+  function draw() {
+    const n = state.entries.length; if (n < 2) return;
+    state.winner = state.entries[fairIndex(n)];
+    state.phase = 'result'; state.route = null; $('planStatus').textContent = '';
+    save(); render();
+  }
+
+  /* ---------- Crawl route ---------- */
+  const uniqueStops = () => {
+    const seen = new Map();
+    for (const e of state.entries) if (!seen.has(key(e))) seen.set(key(e), e);
+    const start = seen.get(key(state.winner)) || state.winner;
+    return [start, ...[...seen.values()].filter(v => key(v) !== key(start))];
+  };
+  const KX = Math.cos(52.23 * Math.PI / 180);
+  const straightM = (a, b) => Math.hypot((a.lng - b.lng) * KX, a.lat - b.lat) * 111320;
+
+  // Walking distances between every pair of bars, from Google's Routes API
+  async function walkingMatrix(pts) {
+    const wp = pts.map(p => ({ waypoint: { location: { latLng: { latitude: p.lat, longitude: p.lng } } } }));
+    const res = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey(),
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters,condition' },
+      body: JSON.stringify({ origins: wp, destinations: wp, travelMode: 'WALK' }),
+    });
+    if (!res.ok) throw new Error('routes ' + res.status);
+    const rows = await res.json();
+    const D = pts.map(() => pts.map(() => NaN));
+    for (const r of rows) if (r.condition === 'ROUTE_EXISTS' && Number.isFinite(r.distanceMeters))
+      D[r.originIndex ?? 0][r.destinationIndex ?? 0] = r.distanceMeters;
+    pts.forEach((_, i) => { D[i][i] = 0; });
+    return D;
+  }
+
+  $('planBtn').addEventListener('click', async () => {
+    const stops = uniqueStops();
+    const btn = $('planBtn'), status = $('planStatus');
+    if (stops.length < 2) { status.textContent = 'Only one bar was in the hat, so there is no route to plan.'; return; }
+    const located = stops.filter(hasLoc), missing = stops.slice(1).filter(s => !hasLoc(s));
+    let order, legs = [], note, walking = false;
+    if (!hasLoc(stops[0]) || located.length < 2) {
+      order = stops;
+      note = 'The bars have no map locations, so the stops follow the order they went into the hat.';
+    } else {
+      btn.disabled = true; status.textContent = 'Working out walking distances…';
+      let D = null;
+      if (located.length <= 25 && apiKey()) { try { D = await walkingMatrix(located); walking = true; } catch (e) { D = null; } }
+      const d = (i, j) => (D && Number.isFinite(D[i][j])) ? D[i][j] : straightM(located[i], located[j]);
+      const left = new Set(located.keys()); left.delete(0);
+      const path = [0];
+      while (left.size) {
+        const last = path[path.length - 1]; let best = null;
+        for (const j of left) if (best === null || d(last, j) < d(last, best)) best = j;
+        path.push(best); left.delete(best);
+      }
+      order = [...path.map(i => located[i]), ...missing];
+      legs = path.map((i, k) => k === 0 ? null : Math.round(d(path[k - 1], i)));
+      note = walking ? 'Each stop is the closest unvisited bar by walking distance from Google.'
+                     : 'Walking distances were unavailable, so each stop is the closest unvisited bar in a straight line.';
+      if (missing.length) note += ` ${missing.length === 1 ? 'One bar has' : missing.length + ' bars have'} no map location and went at the end.`;
+      btn.disabled = false; status.textContent = '';
+    }
+    state.route = { order, legs, note, revealed: 1, walking };
+    save(); renderRoute();
+  });
+
+  // Google Maps links use exact place IDs where we have them
+  const nameQ = e => encodeURIComponent(e.address ? `${e.name}, ${e.address}` : `${e.name}, Warszawa`);
+  const searchUrl = e => 'https://www.google.com/maps/search/?api=1&query=' + nameQ(e) + (e.placeId ? '&query_place_id=' + e.placeId : '');
+  const dirUrl = stops => {
+    const o = stops[0], d = stops[stops.length - 1], mid = stops.slice(1, -1);
+    let u = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=' + nameQ(o) + '&destination=' + nameQ(d);
+    if (o.placeId) u += '&origin_place_id=' + o.placeId;
+    if (d.placeId) u += '&destination_place_id=' + d.placeId;
+    if (mid.length) {
+      u += '&waypoints=' + mid.map(nameQ).join('%7C');
+      if (mid.every(m => m.placeId)) u += '&waypoint_place_ids=' + mid.map(m => m.placeId).join('%7C');
+    }
+    return u;
+  };
+  const fmtM = m => m >= 1000 ? (m / 1000).toFixed(1).replace('.0', '') + ' km' : (Math.round(m / 10) * 10) + ' m';
+
+  function mapsLinks(order) {
+    // Phones accept origin + 3 stops + destination per Google Maps link, so split long crawls into legs
+    const legs = [];
+    for (let i = 0; i < order.length - 1; i += 4) legs.push({ from: i, stops: order.slice(i, Math.min(i + 5, order.length)) });
+    return legs.map(({ from, stops }, k) => ({
+      url: dirUrl(stops),
+      label: legs.length === 1 ? 'Open the whole crawl in Google Maps' : `Leg ${k + 1}: stops ${from + 1}–${from + stops.length} in Google Maps`,
+      first: k === 0,
+    }));
+  }
+
+  function renderRoute(fresh) {
+    const r = state.route;
+    show($('planBtn'), !r);
+    show($('routeOut'), !!r);
+    // The full list of entries would spoil the hidden stops, so it waits until the crawl is fully revealed
+    show($('allList').closest('details'), !r || r.revealed >= r.order.length);
+    if (!r) return;
+    const all = r.order, shown = Math.min(r.revealed, all.length), left = all.length - shown, done = left === 0;
+    const order = all.slice(0, shown);
+    const items = order.map((e, i) => {
+      const li = document.createElement('li'); li.className = 'stop' + (fresh && i === shown - 1 && i > 0 ? ' new' : '');
+      const num = document.createElement('span'); num.className = 'num' + (i === 0 ? ' first' : ''); num.textContent = i + 1;
+      const txt = document.createElement('div'); txt.className = 'txt';
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = e.name;
+      const area = document.createElement('div'); area.className = 'area';
+      const bits = [];
+      if (i === 0) bits.push('Drawn bar');
+      bits.push(e.address ? street(e) : 'No map location');
+      if (i > 0 && Number.isFinite(r.legs?.[i])) bits.push(fmtM(r.legs[i]) + (r.walking ? ' walk' : ''));
+      area.append(bits.join(' · ') + ' · ');
+      const a = document.createElement('a'); a.target = '_blank'; a.rel = 'noopener';
+      if (i === 0) { a.href = searchUrl(e); a.textContent = 'open in Google Maps'; }
+      else { a.href = dirUrl([order[i - 1], e]); a.textContent = 'walk here'; }
+      area.append(a);
+      txt.append(nm, area);
+      li.append(num, txt); return li;
+    });
+    if (!done) {
+      const li = document.createElement('li'); li.className = 'stop hiddenstops';
+      const num = document.createElement('span'); num.className = 'num'; num.textContent = '?';
+      const t = document.createElement('div'); t.textContent = left === 1 ? 'One more bar, still hidden' : `${left} more bars, still hidden`;
+      li.append(num, t); items.push(li);
+    }
+    $('stops').replaceChildren(...items);
+    show($('revealBtn'), !done);
+    $('revealBtn').textContent = `Reveal stop ${shown + 1} of ${all.length}`;
+    // Full-route links only once nothing is left to spoil
+    $('mapLinks').replaceChildren(...(done ? mapsLinks(all) : []).map(l => {
+      const a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = l.label; if (!l.first) a.className = 'leg'; return a;
+    }));
+    $('routeNote').textContent = done ? (r.note || '') : '';
+    drawMap(order);
+  }
+
+  $('revealBtn').addEventListener('click', () => {
+    const r = state.route; if (!r) return;
+    r.revealed = Math.min(r.revealed + 1, r.order.length);
+    save(); renderRoute(true);
+  });
+
+  /* ---------- Real Google map of the revealed stops ---------- */
+  let gmap = null, markers = [], line = null;
+  async function drawMap(order) {
+    const pts = order.map((e, i) => ({ e, i })).filter(p => hasLoc(p.e));
+    show($('mapWrap'), pts.length > 0 && !!apiKey() && !gFailed);
+    if (!pts.length || !apiKey() || gFailed) return;
+    try {
+      loadGoogle();
+      const [{ Map, Polyline }, { AdvancedMarkerElement, PinElement }, core] = await Promise.all([
+        google.maps.importLibrary('maps'), google.maps.importLibrary('marker'), google.maps.importLibrary('core')]);
+      const css = getComputedStyle(document.documentElement), tok = n => css.getPropertyValue(n).trim();
+      if (!gmap) gmap = new Map($('map'), {
+        mapId: CFG.MAP_ID || 'DEMO_MAP_ID', center: { lat: pts[0].e.lat, lng: pts[0].e.lng }, zoom: 15,
+        disableDefaultUI: true, zoomControl: true, gestureHandling: 'cooperative', clickableIcons: false,
+        ...(core.ColorScheme ? { colorScheme: core.ColorScheme.FOLLOW_SYSTEM } : {}),
+      });
+      markers.forEach(m => { m.map = null; }); markers = [];
+      if (line) line.setMap(null);
+      for (const p of pts) {
+        const first = p.i === 0;
+        const pin = new PinElement({ glyph: String(p.i + 1),
+          background: first ? tok('--accent') : tok('--mat'), borderColor: tok('--surface'),
+          glyphColor: first ? tok('--accent-ink') : tok('--mat-ink') });
+        markers.push(new AdvancedMarkerElement({ map: gmap, position: { lat: p.e.lat, lng: p.e.lng }, content: pin.element, title: `${p.i + 1}. ${p.e.name}` }));
+      }
+      if (pts.length > 1) {
+        line = new Polyline({ map: gmap, path: pts.map(p => ({ lat: p.e.lat, lng: p.e.lng })), strokeOpacity: 0,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: tok('--accent'), scale: 3 }, offset: '0', repeat: '12px' }] });
+        const b = new google.maps.LatLngBounds();
+        pts.forEach(p => b.extend({ lat: p.e.lat, lng: p.e.lng }));
+        gmap.fitBounds(b, 48);
+      } else {
+        gmap.setCenter({ lat: pts[0].e.lat, lng: pts[0].e.lng }); gmap.setZoom(16);
+      }
+    } catch (e) {
+      show($('mapWrap'), false);
+    }
+  }
+
+  /* ---------- Start ---------- */
+  if (apiKey()) loadGoogle().catch(() => {}); else showSetup('');
+  renderAdd('');
+  render();
+})();
+</script>
+</body>
+</html>
